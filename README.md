@@ -19,6 +19,8 @@ Implementation should be storage specific and handle the following:
  3. retrieving a set of chat messages, usually by ascending creation dates.
  4. marking an existing chat message as having been read by it's recipient.
 
+All functions provided to the chat server will get a callback as the last argument ( see example below ). these callbacks follow the node function paradigm, that is, they all expect an error ( or null ) as the first argument and if the error is truthy they will fail.
+
 The following example is using mongodb as the storage layer:
 
 ```js

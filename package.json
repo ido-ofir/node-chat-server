@@ -1,0 +1,19 @@
+{
+  "name": "core-chat-server",
+  "version": "1.0.0",
+  "description": "storage agnostic chat server for node",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "chat",
+    "server",
+    "node"
+  ],
+  "author": "ido-ofir",
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^1.1.1"
+  }
+}

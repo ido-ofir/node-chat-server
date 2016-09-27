@@ -62,7 +62,7 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
 
         },
 
-        get(query, callback){  // get a set of chat messages.
+        getMessages(query, callback){  // get a set of chat messages.
 
             // find chat messages addresed to a specific user or group id.
             var findQuery = { to: query.to };
@@ -82,6 +82,14 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
 
             // execute
             cursor.toArray(callback);
+
+        },
+        
+        getGroupUserIds(data, callback){
+
+          groups.findOne({ _id: mongodb.ObjectId(data.groupId) }, function (err, group) {
+            callback(err, group && group.users);
+          });
 
         },
 
@@ -110,12 +118,13 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
 As you can see from the example the chat server api consists of an object that you create and pass to the constructor.
 This object is expected to contain the following:
 
-* **port** - the port at which the socket server will be listening. defaults to 8080.
-* **log** - an optional flag for debugging purposes. if true the server will log some info about it's activities to the console.
-* **authorize** - a function used to authorize newly connected sockets. the first argument to this function will be an object that came from the connected client, usually containing some kind of access token. the chat server is agnostic as to how exactly you authorize your users, and you are free to require no authorization at all. however this function will still run for each connecting socket and it is expected to return some sort of user object to the callback. this user object can have any structure but it must contain an `id` or `_id` field which should be unique. the user object will be attached to the socket and the chat server will pass any messages addressed to this user's id through the socket.
-* **create** - create a new chat message. the first argument to this function is a 'message' object, which was sent from the client to the chat server. the chat server will add a 'createdAt' date to the message object as well as a 'from' property which will always be the id ( or _id ) of the user that is attached to the socket that sent the message. the message object sent from the client must have one property named 'to' which should be a valid user id. the 'to' property on the message will be used to propagate the message to the correct user.
-* **get** - a function used to get a set of chat messages to the client. as the chat server is storage agnostic, only the basic query parameters are normalized, but you can pass anything you like from the client to select a more specific set of chat messages. normal client usage will usually require only these:
+* **port** - Number - the port at which the socket server will be listening. defaults to 8080.
+* **log** - Boolean - an optional flag for debugging purposes. if true the server will log some info about it's activities to the console.
+* **authorize** - Function(data: Object, callback: Function) - used to authorize newly connected sockets. the first argument to this function will be an object that came from the connected client, usually containing some kind of access token. the chat server is agnostic as to how exactly you authorize your users, and you are free to require no authorization at all. however this function will still run for each connecting socket and it is expected to return some sort of user object to the callback. this user object can have any structure but it must contain an `id` or `_id` field which should be unique. the user object will be attached to the socket and the chat server will pass any messages addressed to this user's id through the socket.
+* **create** - Function(message: Object, callback: Function) - create a new chat message. the first argument to this function is a 'message' object, which was sent from the client to the chat server. the chat server will add a 'createdAt' date to the message object as well as a 'from' property which will always be the id ( or _id ) of the user that is attached to the socket that sent the message. the message object sent from the client must have one property named 'to' which should be a valid user id. the 'to' property on the message will be used to propagate the message to the correct user.
+* **getMessages** - Function(query: Object, callback: Function) - a function used to get a set of chat messages to the client. as the chat server is storage agnostic, only the basic query parameters are normalized, but you can pass anything you like from the client to select a more specific set of chat messages. normal client usage will usually require only these fields in the query:
     * **limit** - the number of messages to fetch. defaults to 10.
     * **skip** - an offset from the last message, used for pagination. defaults to 0.
-* **read** - a function used to mark a chat message as having been read by it's recipient. the first argument is the id of the chat message that was read, and it should arrive from the client ( the chat server has no idea about ids of chat messages ).
-* **actions** - user defined actions. this is an object containing a set of functions that can be called by the client. this is just a useful helper tool as the chat server does not use these actions at all. it is only there to provide a way for you to use the chat server's transport to communicate between your server and client.
+* **getGroupUserIds** - Function(data: Object, callback: Function) - get an array of user ids for a specific group. `data` will contain a 'groupId' field. 
+* **read** - Function(id: String, callback: Function) - a function used to mark a chat message as having been read by it's recipient. the first argument is the id of the chat message that was read, and it should arrive from the client ( the chat server has no idea about ids of chat messages ).
+* **actions** - Object - user defined actions. this is an object containing a set of functions that can be called by the client. this is just a useful helper tool as the chat server does not use these actions at all. it is only there to provide a way for you to use the chat server's transport to communicate between your server and client.

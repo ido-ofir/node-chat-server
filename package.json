@@ -1,5 +1,5 @@
 {
-  "name": "core-chat-server",
+  "name": "node-chat-server",
   "version": "1.0.0",
   "description": "storage agnostic chat server for node",
   "main": "index.js",
@@ -11,6 +11,7 @@
     "server",
     "node"
   ],
+  "repository": "https://github.com/ido-ofir/node-chat-server.git",
   "author": "ido-ofir",
   "license": "ISC",
   "dependencies": {

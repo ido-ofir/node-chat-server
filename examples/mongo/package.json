@@ -1,0 +1,16 @@
+{
+  "name": "chat-server-mongo-example",
+  "version": "1.0.0",
+  "description": "example implementing node-chat-server with mongodb",
+  "main": "index.js",
+  "dependencies": {
+    "async": "^2.0.1",
+    "mongodb": "^2.2.10"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "ido-ofir",
+  "license": "ISC"
+}

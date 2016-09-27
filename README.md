@@ -8,6 +8,10 @@ Storage agnostic chat server.
 npm install node-chat-server
 ```
 
+## Client
+
+There is a complimentary client side module on npm called <a href="https://github.com/ido-ofir/chat-client">chat-client</a> which is the easiest way to set up a working chat.
+
 ## Usage
 
 This module handles chat server logic in a storage agnostic way.

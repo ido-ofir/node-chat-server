@@ -20,7 +20,7 @@ Implementation should be storage specific and handle the following:
 
  1. authenticating a connecting socket by providing a user object for it.
  2. saving a new, single chat message.
- 3. retrieving a set of chat messages, usually by ascending creation dates.
+ 3. retrieving a set of chat messages, usually by descending creation dates.
  4. marking an existing chat message as having been read by it's recipient.
 
 All functions provided to the chat server will get a callback as the last argument ( see example below ). these callbacks follow the node function paradigm, that is, they all expect an error ( or null ) as the first argument and if the error is truthy they will fail.
@@ -49,7 +49,6 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
 
         authorize(data, callback){  // all connecting sockets will need to authorize before doing anything else.
                                     // the callback is expecting some kind of user object as the second argument.
-
             users.findOne({ token: data.token }, callback);
 
         },
@@ -62,17 +61,22 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
 
         },
 
-        getMessages(query, callback){  // get a set of chat messages.
+        getMessages(query, callback){
 
-            // find chat messages addresed to a specific user or group id.
-            var findQuery = { to: query.to };
-            if (query.from) {  // 'from' will be present for a user but not for a group.
-                findQuery.from = query.from;
-            }
+            // find chat messages between two users, or a user and a group.
+            // query.ids is an array with two ids in it. 
+            // the first id belongs to the user that is requesting the mesasges.ng
+            // the second id can be a user id or a group id.
+            var findQuery = {
+              $or: [
+                { from: query.ids[0], to: query.ids[1] },
+                { from: query.ids[1], to: query.ids[0] }
+              ]
+            };
             var cursor = chats.find(findQuery);
 
-            // sort by ascending creation date. 'createdAt' is added by the chat server to every message.
-            cursor.sort({ createdAt: 1 });
+            // sort by descending creation date. 'createdAt' is added by the chat server to every message.
+            cursor.sort({ createdAt: -1 });
 
             // skip items
             cursor.skip(query.skip);
@@ -85,8 +89,9 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
 
         },
         
-        getGroupUserIds(data, callback){
-
+        getGroupUserIds(data, callback){  // get an array of user ids for a specific group.
+          
+          // data.groupId is the id of the group.
           groups.findOne({ _id: mongodb.ObjectId(data.groupId) }, function (err, group) {
             callback(err, group && group.users);
           });

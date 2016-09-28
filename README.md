@@ -22,6 +22,7 @@ Implementation should be storage specific and handle the following:
  2. saving a new, single chat message.
  3. retrieving a set of chat messages, usually by descending creation dates.
  4. marking an existing chat message as having been read by it's recipient.
+ 5. when implementing groups, retrieving an array of user ids that belong to a specific group.
 
 All functions provided to the chat server will get a callback as the last argument ( see example below ). these callbacks follow the node function paradigm. that is, they all expect an error ( or null ) as the first argument and if the error is truthy they will fail.
 

@@ -23,16 +23,18 @@ Implementation should be storage specific and handle the following:
  3. retrieving a set of chat messages, usually by descending creation dates.
  4. marking an existing chat message as having been read by it's recipient.
 
-All functions provided to the chat server will get a callback as the last argument ( see example below ). these callbacks follow the node function paradigm, that is, they all expect an error ( or null ) as the first argument and if the error is truthy they will fail.
+All functions provided to the chat server will get a callback as the last argument ( see example below ). these callbacks follow the node function paradigm. that is, they all expect an error ( or null ) as the first argument and if the error is truthy they will fail.
 
 The following example is using mongodb as the storage layer:
 
 ```js
 
 var ChatServer = require('node-chat-server');
+var mongodb = require('mongodb');
+var async = require('async');
 
 // first connect to the database.
-require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, db) {
+mongodb.connect('mongodb://localhost:27017/chatserver', function(err, db) {
 
     // point to a collection holding all chat messages.
     var chats = db.collection('chats');
@@ -40,31 +42,34 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
     // point to a collection of users for authentication.
     var users = db.collection('users');
 
+    // point to a collection of groups holding user ids.
+    var groups = db.collection('groups');
+
     // start the chat server.
     var chatServer = new ChatServer({
 
         port: 4001,   // the port that the chat server will listen on. defaults to 8080.
-        
+
         log: true,    // log activities to the console. used for debugging purposes.
 
         authorize(data, callback){  // all connecting sockets will need to authorize before doing anything else.
                                     // the callback is expecting some kind of user object as the second argument.
-            users.findOne({ token: data.token }, callback);
+           users.findOne({ token: data.token }, callback);
 
         },
 
-        create(msg, callback){  // create a new chat message.
+        create(message, callback){  // create a new chat message.
 
-           chats.insertOne(msg, function (err, res) {
-             callback(err, msg);
-           });
+          chats.insertOne(message, function (err, res) {
+            callback(err, message);
+          });
 
         },
 
-        getMessages(query, callback){
+        getMessages(query, callback){  // find chat messages between two users, or a user and a group.
 
             // find chat messages between two users, or a user and a group.
-            // query.ids is an array with two ids in it. 
+            // query.ids is an array with two ids in it.
             // the first id belongs to the user that is requesting the mesasges.ng
             // the second id can be a user id or a group id.
             var findQuery = {
@@ -90,8 +95,7 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
         },
         
         getGroupUserIds(data, callback){  // get an array of user ids for a specific group.
-          
-          // data.groupId is the id of the group.
+
           groups.findOne({ _id: mongodb.ObjectId(data.groupId) }, function (err, group) {
             callback(err, group && group.users);
           });
@@ -100,19 +104,27 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
 
         read(id, callback){  // mark a chat message as having been read by the recipient.
 
-            chats.findOneAndUpdate({ _id: id }, { $set: { read: true }}, {}, callback);
+            chats.findOneAndUpdate({ _id: mongodb.ObjectId(id) }, { $set: { read: true }}, {}, callback);
 
         },
-        
-        actions: {    // you can define some custom actions here,
-                      // and then call them from the client.
-          getUsers(socket, data, callback){
-             
-             users.find(data || {}, callback);
-             
-          }
-          
+
+        actions: {  // custom defined actions.
+
+            getUsersAndGroups(socket, data, callback){
+
+                async.parallel([function (cb) {  // get all users.
+                  users.find({}).toArray(cb);
+                },function (cb) {    // get the groups that the user belongs to.
+                  groups.find({ users: socket.user._id.toString() }).toArray(cb);
+                }], function (err, results) {
+                  var array = results || [];
+                  callback(err, { users: array[0], groups: array[1] });
+                });
+
+            }
+
         }
+
     });
 
 });

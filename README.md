@@ -10,7 +10,7 @@ npm install node-chat-server
 
 ## Client
 
-There is a complimentary client side module on npm called <a href="https://github.com/ido-ofir/chat-client">chat-client</a> which is the easiest way to set up a working chat.
+There is a complimentary client side module on npm called <a href="https://github.com/ido-ofir/chat-client">chat-client</a> which is the easiest way to set up a working chat with this server.
 
 ## Usage
 
@@ -20,19 +20,22 @@ Implementation should be storage specific and handle the following:
 
  1. authenticating a connecting socket by providing a user object for it.
  2. saving a new, single chat message.
- 3. retrieving a set of chat messages, usually by ascending creation dates.
+ 3. retrieving a set of chat messages, usually by descending creation dates.
  4. marking an existing chat message as having been read by it's recipient.
+ 5. when implementing groups, retrieving an array of user ids that belong to a specific group.
 
-All functions provided to the chat server will get a callback as the last argument ( see example below ). these callbacks follow the node function paradigm, that is, they all expect an error ( or null ) as the first argument and if the error is truthy they will fail.
+All functions provided to the chat server will get a callback as the last argument ( see example below ). these callbacks follow the node function paradigm. that is, they all expect an error ( or null ) as the first argument and if the error is truthy they will fail.
 
 The following example is using mongodb as the storage layer:
 
 ```js
 
 var ChatServer = require('node-chat-server');
+var mongodb = require('mongodb');
+var async = require('async');
 
 // first connect to the database.
-require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, db) {
+mongodb.connect('mongodb://localhost:27017/chatserver', function(err, db) {
 
     // point to a collection holding all chat messages.
     var chats = db.collection('chats');
@@ -40,39 +43,46 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
     // point to a collection of users for authentication.
     var users = db.collection('users');
 
+    // point to a collection of groups holding user ids.
+    var groups = db.collection('groups');
+
     // start the chat server.
     var chatServer = new ChatServer({
 
         port: 4001,   // the port that the chat server will listen on. defaults to 8080.
-        
+
         log: true,    // log activities to the console. used for debugging purposes.
 
         authorize(data, callback){  // all connecting sockets will need to authorize before doing anything else.
                                     // the callback is expecting some kind of user object as the second argument.
-
-            users.findOne({ token: data.token }, callback);
-
-        },
-
-        create(msg, callback){  // create a new chat message.
-
-           chats.insertOne(msg, function (err, res) {
-             callback(err, msg);
-           });
+           users.findOne({ token: data.token }, callback);
 
         },
 
-        getMessages(query, callback){  // get a set of chat messages.
+        create(message, callback){  // create a new chat message.
 
-            // find chat messages addresed to a specific user or group id.
-            var findQuery = { to: query.to };
-            if (query.from) {  // 'from' will be present for a user but not for a group.
-                findQuery.from = query.from;
-            }
+          chats.insertOne(message, function (err, res) {
+            callback(err, message);
+          });
+
+        },
+
+        getMessages(query, callback){  // find chat messages between two users, or a user and a group.
+
+            // find chat messages between two users, or a user and a group.
+            // query.ids is an array with two ids in it.
+            // the first id belongs to the user that is requesting the mesasges.ng
+            // the second id can be a user id or a group id.
+            var findQuery = {
+              $or: [
+                { from: query.ids[0], to: query.ids[1] },
+                { from: query.ids[1], to: query.ids[0] }
+              ]
+            };
             var cursor = chats.find(findQuery);
 
-            // sort by ascending creation date. 'createdAt' is added by the chat server to every message.
-            cursor.sort({ createdAt: 1 });
+            // sort by descending creation date. 'createdAt' is added by the chat server to every message.
+            cursor.sort({ createdAt: -1 });
 
             // skip items
             cursor.skip(query.skip);
@@ -85,7 +95,7 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
 
         },
         
-        getGroupUserIds(data, callback){
+        getGroupUserIds(data, callback){  // get an array of user ids for a specific group.
 
           groups.findOne({ _id: mongodb.ObjectId(data.groupId) }, function (err, group) {
             callback(err, group && group.users);
@@ -95,19 +105,27 @@ require('mongodb').connect('mongodb://localhost:27017/myproject', function(err, 
 
         read(id, callback){  // mark a chat message as having been read by the recipient.
 
-            chats.findOneAndUpdate({ _id: id }, { $set: { read: true }}, {}, callback);
+            chats.findOneAndUpdate({ _id: mongodb.ObjectId(id) }, { $set: { read: true }}, {}, callback);
 
         },
-        
-        actions: {    // you can define some custom actions here,
-                      // and then call them from the client.
-          getUsers(socket, data, callback){
-             
-             users.find(data || {}, callback);
-             
-          }
-          
+
+        actions: {  // custom defined actions.
+
+            getUsersAndGroups(socket, data, callback){
+
+                async.parallel([function (cb) {  // get all users.
+                  users.find({}).toArray(cb);
+                },function (cb) {    // get the groups that the user belongs to.
+                  groups.find({ users: socket.user._id.toString() }).toArray(cb);
+                }], function (err, results) {
+                  var array = results || [];
+                  callback(err, { users: array[0], groups: array[1] });
+                });
+
+            }
+
         }
+
     });
 
 });

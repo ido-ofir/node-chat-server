@@ -15,7 +15,6 @@ function ChatServer(options){
     if(!options.create) return console.log(`node-chat-server: you must provide a 'create' method in options for creating a new chat message.`)
     if(!options.authorize) return console.log(`node-chat-server: you must provide an 'authorize' method in options for authorizing connecting sockets.`)
     if(!options.getMessages) return console.log(`node-chat-server: you must provide a 'getMessages' method in options for retrieving a set of chat messages.`)
-    if(!options.read) return console.log(`node-chat-server: you must provide a 'read' method in options to mark a chat message as being read.`)
 
     var chatServer = this;
     var port = options.port || 8080;
@@ -23,6 +22,8 @@ function ChatServer(options){
     var server = new WebSocketServer({ server: httpServer });
 
     chatServer.sockets = [];
+    chatServer.httpServer = httpServer;
+    chatServer.wsServer = server;
 
     function sendMessage(message, userId, done) {
       userId = userId.toString();
@@ -36,9 +37,10 @@ function ChatServer(options){
     var actions = {
       authorize(socket, data, done){
         options.authorize(data, function (err, user) {
-
           if(err){
-            return console.log(`node-chat-server: authorization error ${ err.message || err.toString() }`);
+            console.log(`node-chat-server: authorization error ${ err.message || err.toString() }`);
+            console.log(5555);
+            return done(err);
           }
           if(!user){
             return done('authorizationFailed');
@@ -97,7 +99,10 @@ function ChatServer(options){
         options.getMessages(query, done);
       },
       read(socket, data, done){
-        options.read(data.id, done);
+        if(options.read) options.read(data.id, done);
+        else{
+          done();
+        }
       }
     };
 
@@ -116,24 +121,34 @@ function ChatServer(options){
               var json = JSON.parse(msg);
               if(!json.type){ return console.error(`json does not have a 'type'`); }
 
-              // if unauthorized sockets try to do anything other then
-              // requesting authorization - disconnect them immediately.
+              // is this socket is not authorized and is not trying to authorize..
               if((json.type !== 'authorize') && (!socket.user || (!socket.user.id && !socket.user._id))){
-                if(options.log){
-                  console.log(`node-chat-server: disconnecting unauthorized socket`)
+
+                // if not authorized, it can use only the open actions.
+                if(options.openActions && options.openActions[json.type]){
+                  return options.openActions[json.type](socket, json.data, function(err, res){
+                      socket.send(JSON.stringify({id: json.id, error: err, data: res}));
+                  }, socket);
                 }
-                return socket.close();
+
+                // if unauthorized sockets try to do anything other then
+                // requesting authorization or using the open actions - disconnect them immediately.
+                else{
+                  if(options.log){
+                    console.log(`node-chat-server: disconnecting unauthorized socket - `, json.type)
+                  }
+                  return socket.close();
+                }
               }
 
-              console.log('node-chat-server: got - ', json);
-
-              if(actions[json.type]){ // perform a chat server action.
-                actions[json.type](socket, json.data, function(err, res){
-                    socket.send(JSON.stringify({id: json.id, error: err, data: res}));
-                }, socket);
+              if(options.log){
+                console.log('node-chat-server: got - ', json);
               }
-              else if(options.actions && options.actions[json.type]){ // perform a user defined action.
-                return options.actions[json.type](socket, json.data, function(err, res){
+
+              var action = actions[json.type] || options.actions[json.type];
+              if(action){ // perform a chat server action.
+                action(socket, json.data, function(err, res){
+                  console.log('ok');
                     socket.send(JSON.stringify({id: json.id, error: err, data: res}));
                 }, socket);
               }

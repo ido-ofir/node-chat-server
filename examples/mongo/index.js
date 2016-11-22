@@ -1,6 +1,8 @@
+
 var ChatServer = require('../../index.js');
-var async = require('async');
 var mongodb = require('mongodb');
+var async = require('async');
+
 // first connect to the database.
 mongodb.connect('mongodb://localhost:27017/chatserver', function(err, db) {
 
@@ -16,71 +18,30 @@ mongodb.connect('mongodb://localhost:27017/chatserver', function(err, db) {
     // start the chat server.
     var chatServer = new ChatServer({
 
-        port: 4001,
-        log: true,
+        port: 4001,   // the port that the chat server will listen on. defaults to 8080.
 
-        actions: {
-          getUsers(socket, data, callback){
-            users.find({}).toArray(callback);
-          },
-          getGroups(socket, data, callback){
-            groups.find({ users: socket.user._id.toString() }).toArray(callback);
-          },
-          getUsersAndGroups(socket, data, callback){
-            async.parallel([function (cb) {
-              users.find({}).toArray(cb);
-            },function (cb) {
-              groups.find({ users: socket.user._id.toString() }).toArray(cb);
-            }], function (err, results) {
-              var array = results || [];
-              callback(err, { users: array[0], groups: array[1] });
-            });
-          }
-        },
+        log: true,    // log activities to the console. used for debugging purposes.
 
-        authorize(data, callback){
-
-            users.findOne({ token: data.token }, callback);
+        authorize(data, callback){  // all connecting sockets will need to authorize before doing anything else.
+                                    // the callback is expecting some kind of user object as the second argument.
+           users.findOne({ token: data.token }, callback);
 
         },
 
-        create(message, callback){
+        create(message, callback){  // create a new chat message.
 
-          if(message.groupId){
-            groups.findOne({ _id: mongodb.ObjectId(message.groupId) }, function (err, group) {
-              if (err) { return callback(err); }
-              if(!group.users)
-              async.map(group.users, function (userId, cb) {
-                var msg = {};
-                for(var m in message){
-                  msg[m] = message[m];
-                }
-                msg.to = userId;
-                chats.insertOne(message, cb);
-              }, function (err, results) {
-                callback(err, message);
-              });
-            });
-          }
-          else{
-            chats.insertOne(message, function (err, res) {
-              callback(err, message);
-            });
-          }
-
-        },
-
-        getGroupUserIds(data, callback){
-
-          groups.findOne({ _id: mongodb.ObjectId(data.groupId) }, function (err, group) {
-            callback(err, group && group.users);
+          chats.insertOne(message, function (err, res) {
+            callback(err, message);
           });
 
         },
 
-        getMessages(query, callback){
+        getMessages(query, callback){  // find chat messages between two users, or a user and a group.
 
             // find chat messages between two users, or a user and a group.
+            // query.ids is an array with two ids in it.
+            // the first id belongs to the user that is requesting the mesasges.ng
+            // the second id can be a user id or a group id.
             var findQuery = {
               $or: [
                 { from: query.ids[0], to: query.ids[1] },
@@ -103,11 +64,37 @@ mongodb.connect('mongodb://localhost:27017/chatserver', function(err, db) {
 
         },
 
-        read(id, callback){
+        getGroupUserIds(data, callback){  // get an array of user ids for a specific group.
+
+          groups.findOne({ _id: mongodb.ObjectId(data.groupId) }, function (err, group) {
+            callback(err, group && group.users);
+          });
+
+        },
+
+        read(id, callback){  // mark a chat message as having been read by the recipient.
 
             chats.findOneAndUpdate({ _id: mongodb.ObjectId(id) }, { $set: { read: true }}, {}, callback);
 
+        },
+
+        actions: {  // custom defined actions.
+
+            getUsersAndGroups(socket, data, callback){
+
+                async.parallel([function (cb) {  // get all users.
+                  users.find({}).toArray(cb);
+                },function (cb) {    // get the groups that the user belongs to.
+                  groups.find({ users: socket.user._id.toString() }).toArray(cb);
+                }], function (err, results) {
+                  var array = results || [];
+                  callback(err, { users: array[0], groups: array[1] });
+                });
+
+            }
+
         }
+
     });
 
 });

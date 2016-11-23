@@ -39,7 +39,6 @@ function ChatServer(options){
         options.authorize(data, function (err, user) {
           if(err){
             console.log(`node-chat-server: authorization error ${ err.message || err.toString() }`);
-            console.log(5555);
             return done(err);
           }
           if(!user){
@@ -148,7 +147,6 @@ function ChatServer(options){
               var action = actions[json.type] || options.actions[json.type];
               if(action){ // perform a chat server action.
                 action(socket, json.data, function(err, res){
-                  console.log('ok');
                     socket.send(JSON.stringify({id: json.id, error: err, data: res}));
                 }, socket);
               }

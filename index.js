@@ -26,6 +26,7 @@ function ChatServer(options){
     chatServer.httpServer = httpServer;
     chatServer.wsServer = server;
     chatServer.copy = copy;
+    this.events = {};
 
     function sendMessage(message, userId, done) {
       userId = userId.toString();
@@ -51,6 +52,7 @@ function ChatServer(options){
 
           socket.user = user;
           chatServer.sockets.push(socket);
+          chatServer.emit('socketAuthorized', socket, chatServer);
           if(options.log){
             console.log(`node-chat-server: authorizing ${user.name || user.id || user._id}. ${chatServer.sockets.length} connected sockets.`)
           }
@@ -169,11 +171,14 @@ function ChatServer(options){
           }
           if(index > -1){
             chatServer.sockets.splice(index, 1);
+            chatServer.emit('socketClosed', socket, chatServer);
             if(options.log){
               console.log(`node-chat-server: splicing authorized socket. ${chatServer.sockets.length} connected sockets`)
             }
           }
       });
+
+      chatServer.emit('socketConnected', socket, chatServer);
     });
 
     httpServer.listen(port, function(){
@@ -185,6 +190,53 @@ function ChatServer(options){
       }
     });
 
+}
+
+ChatServer.prototype = {
+  on(eventName, listener){  // add a listener to 'eventName', return false in listener to stop the event.
+
+    var event = this.events[eventName];
+    if (!event) {
+        event = this.events[eventName] = {listeners: []};
+    }
+    event.listeners.push(listener);
+    return this;
+
+  },
+  off(eventName, listener){   // remove a listener.
+
+    if (!eventName){   // calling off() with no arguments removes all listeners for all events.
+      this.events = {};
+    }
+    else if (!listener){    // calling off('eventName') with no listener removes all event listeners for 'eventName'.
+      delete this.events[eventName];
+    }
+    else{   // calling off('eventName', listener) will only remove listener.
+      var event = this.events[eventName];
+      if (event) {
+          event.listeners = event.listeners.filter((l)=>{
+            return (l === listener);
+          });
+          if (!event.listeners.length) delete this.events[eventName];
+      }
+    }
+    return this;
+
+  },
+  emit(eventName, ...args){  // emit a named event
+
+    if(this.options.log){
+      console.log('chat-client - emitting ' + eventName, args);
+    }
+    var cont, event = this.events[eventName];
+    if (!event) return;
+    for (var i = 0; i < event.listeners.length; i++) {
+        cont = event.listeners[i].apply(null, args);
+        if (cont === false) break;  // if a listener returned false, stop here.
+    }
+    return this;
+
+  }
 }
 
 module.exports = ChatServer;

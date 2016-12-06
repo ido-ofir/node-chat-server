@@ -94,7 +94,7 @@ mongodb.connect('mongodb://localhost:27017/chatserver', function(err, db) {
             cursor.toArray(callback);
 
         },
-        
+
         getGroupUserIds(data, callback){  // get an array of user ids for a specific group.
 
           groups.findOne({ _id: mongodb.ObjectId(data.groupId) }, function (err, group) {
@@ -143,6 +143,13 @@ This object is expected to contain the following:
 * **getMessages** - Function(query: Object, callback: Function) - a function used to get a set of chat messages to the client. as the chat server is storage agnostic, only the basic query parameters are normalized, but you can pass anything you like from the client to select a more specific set of chat messages. normal client usage will usually require only these fields in the query:
     * **limit** - the number of messages to fetch. defaults to 10.
     * **skip** - an offset from the last message, used for pagination. defaults to 0.
-* **getGroupUserIds** - Function(data: Object, callback: Function) - get an array of user ids for a specific group. `data` will contain a 'groupId' field. 
+* **getGroupUserIds** - Function(data: Object, callback: Function) - get an array of user ids for a specific group. `data` will contain a 'groupId' field.
 * **read** - Function(id: String, callback: Function) - a function used to mark a chat message as having been read by it's recipient. the first argument is the id of the chat message that was read, and it should arrive from the client ( the chat server has no idea about ids of chat messages ).
 * **actions** - Object - user defined actions. this is an object containing a set of functions that can be called by the client. this is just a useful helper tool as the chat server does not use these actions at all. it is only there to provide a way for you to use the chat server's transport to communicate between your server and client.
+
+
+#### Events
+
+* 'socketConnected'
+* 'socketAuthorized'
+* 'socketClosed'

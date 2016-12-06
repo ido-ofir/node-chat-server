@@ -223,8 +223,9 @@ ChatServer.prototype = {
     return this;
 
   },
-  emit(eventName, ...args){  // emit a named event
+  emit(eventName, args){  // emit a named event
 
+    var args = [].slice.call(arguments, 1);
     if(this.options.log){
       console.log('chat-client - emitting ' + eventName, args);
     }

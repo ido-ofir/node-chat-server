@@ -1,8 +1,8 @@
 var http = require('http');
 var WebSocketServer = require('ws').Server;
 
-function copy(a) {
-  var b = {};
+function copy(a, b) {
+  if(!b) b = {};
   for(var m in a){
     b[m] = a[m];
   }
@@ -11,12 +11,13 @@ function copy(a) {
 
 function ChatServer(options){
 
-    if(!options) return console.log(`node-chat-server: you must provide an options object.`)
-    if(!options.create) return console.log(`node-chat-server: you must provide a 'create' method in options for creating a new chat message.`)
-    if(!options.authorize) return console.log(`node-chat-server: you must provide an 'authorize' method in options for authorizing connecting sockets.`)
-    if(!options.getMessages) return console.log(`node-chat-server: you must provide a 'getMessages' method in options for retrieving a set of chat messages.`)
+    // if(!options) return console.log(`node-chat-server: you must provide an options object.`)
+    // if(!options.create) return console.log(`node-chat-server: you must provide a 'create' method in options for creating a new chat message.`)
+    // if(!options.authorize) return console.log(`node-chat-server: you must provide an 'authorize' method in options for authorizing connecting sockets.`)
+    // if(!options.getMessages) return console.log(`node-chat-server: you must provide a 'getMessages' method in options for retrieving a set of chat messages.`)
 
     var chatServer = this;
+    var context = options.context || chatServer;
     var port = options.port || 8080;
     var httpServer = http.createServer();
     var server = new WebSocketServer({ server: httpServer });
@@ -24,6 +25,7 @@ function ChatServer(options){
     chatServer.sockets = [];
     chatServer.httpServer = httpServer;
     chatServer.wsServer = server;
+    chatServer.copy = copy;
 
     function sendMessage(message, userId, done) {
       userId = userId.toString();
@@ -36,7 +38,8 @@ function ChatServer(options){
 
     var actions = {
       authorize(socket, data, done){
-        options.authorize(data, function (err, user) {
+        if(!options.authorize) return done('options.authorize is missing');
+        options.authorize.call(context, data, function (err, user) {
           if(err){
             console.log(`node-chat-server: authorization error ${ err.message || err.toString() }`);
             return done(err);
@@ -56,6 +59,7 @@ function ChatServer(options){
         });
       },
       create(socket, data, done){
+        if(!options.create) return done('options.create is missing');
         var message = copy(data);
         if(!message.to) {
           return done(`node-chat-server: a chat message must contain a 'to' property which should be a valid id of a user or a group.`);
@@ -66,12 +70,12 @@ function ChatServer(options){
         if(options.log){
           console.log(`node-chat-server: creating chat message for ${user.name || user.id || user._id}`)
         }
-        options.create(message, function (err, msg) {
+        options.create.call(context, message, function (err, msg) {
 
           if(err){ return done(err); }
 
           if(msg.isGroup){
-            options.getGroupUserIds({ groupId: msg.to }, function (err, userIds) {
+            options.getGroupUserIds.call(context, { groupId: msg.to }, function (err, userIds) {
               if(err){ return done(err); }
               userIds.map(function (userId) {
                 sendMessage(msg, userId);
@@ -87,6 +91,7 @@ function ChatServer(options){
         });
       },
       getMessages(socket, data, done){
+        if(!options.getMessages) return done('options.getMessages is missing');
         var query = copy(data);
         query.ids = [(socket.user.id || socket.user._id).toString(), query.with];
         if(!query.skip){
@@ -95,13 +100,11 @@ function ChatServer(options){
         if(!query.limit){
           query.limit = 10;
         }
-        options.getMessages(query, done);
+        options.getMessages.call(context, query, done);
       },
       read(socket, data, done){
-        if(options.read) options.read(data.id, done);
-        else{
-          done();
-        }
+        if(!options.read) return done('options.read is missing');
+        options.read.call(context, data.id, done);
       }
     };
 
@@ -121,11 +124,11 @@ function ChatServer(options){
               if(!json.type){ return console.error(`json does not have a 'type'`); }
 
               // is this socket is not authorized and is not trying to authorize..
-              if((json.type !== 'authorize') && (!socket.user || (!socket.user.id && !socket.user._id))){
+              if(options.authorize && (json.type !== 'authorize') && (!socket.user || (!socket.user.id && !socket.user._id))){
 
                 // if not authorized, it can use only the open actions.
                 if(options.openActions && options.openActions[json.type]){
-                  return options.openActions[json.type](socket, json.data, function(err, res){
+                  return options.openActions[json.type].call(context, socket, json.data, function(err, res){
                       socket.send(JSON.stringify({id: json.id, error: err, data: res}));
                   }, socket);
                 }
@@ -146,7 +149,7 @@ function ChatServer(options){
 
               var action = actions[json.type] || options.actions[json.type];
               if(action){ // perform a chat server action.
-                action(socket, json.data, function(err, res){
+                action.call(context, socket, json.data, function(err, res){
                     socket.send(JSON.stringify({id: json.id, error: err, data: res}));
                 }, socket);
               }
@@ -174,7 +177,12 @@ function ChatServer(options){
     });
 
     httpServer.listen(port, function(){
-        console.log(`➜  chat server at port ${port}`);
+      if(options.log){
+        console.log(`node-chat-server: listening at port ${port}`)
+      }
+      if(options.onOpen){
+        options.onOpen.call(context);
+      }
     });
 
 }

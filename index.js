@@ -26,6 +26,7 @@ function ChatServer(options){
     chatServer.httpServer = httpServer;
     chatServer.wsServer = server;
     chatServer.copy = copy;
+    chatServer.options = options;
     this.events = {};
 
     function sendMessage(message, userId, done) {
@@ -227,7 +228,7 @@ ChatServer.prototype = {
 
     var args = [].slice.call(arguments, 1);
     if(this.options.log){
-      console.log('chat-client - emitting ' + eventName, args);
+      console.log('node-chat-server - emitting ' + eventName);
     }
     var cont, event = this.events[eventName];
     if (!event) return;
@@ -237,6 +238,17 @@ ChatServer.prototype = {
     }
     return this;
 
+  },
+  send(type, data, userIds) {
+    if(typeof userIds === 'string'){ userIds = [userIds]; }
+    this.sockets.map(function (socket) {
+      if(socket.user && ((userIds.indexOf(socket.user.id) > -1) || (userIds.indexOf(socket.user._id) > -1))){
+        socket.action(type, data);
+      }
+    });
+  },
+  broadcast(type, data){
+    this.sockets.map(s => s.action(type, data));
   }
 }
 

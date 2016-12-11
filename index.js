@@ -118,6 +118,7 @@ function ChatServer(options){
       }
 
       socket.action = function(type, data){  // run an action on the client.
+          if(socket.isClosed) return;
           socket.send(JSON.stringify({type: type, data: data}));
       };
 
@@ -132,6 +133,7 @@ function ChatServer(options){
                 // if not authorized, it can use only the open actions.
                 if(options.openActions && options.openActions[json.type]){
                   return options.openActions[json.type].call(context, socket, json.data, function(err, res){
+                      if(socket.isClosed) return;
                       socket.send(JSON.stringify({id: json.id, error: err, data: res}));
                   }, socket);
                 }
@@ -153,6 +155,7 @@ function ChatServer(options){
               var action = actions[json.type] || options.actions[json.type];
               if(action){ // perform a chat server action.
                 action.call(context, socket, json.data, function(err, res){
+                    if(socket.isClosed) return;
                     socket.send(JSON.stringify({id: json.id, error: err, data: res}));
                 }, socket);
               }
@@ -166,6 +169,7 @@ function ChatServer(options){
       });
 
       socket.on('close', function () {
+        socket.isClosed = true;
           var index = chatServer.sockets.indexOf(socket);
           if(options.log){
             console.log(`node-chat-server: socket closing`)

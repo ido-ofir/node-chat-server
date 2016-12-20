@@ -68,7 +68,7 @@ function ChatServer(options){
           return done(`node-chat-server: a chat message must contain a 'to' property which should be a valid id of a user or a group.`);
         }
         var user = socket.user;
-        message.createdAt = new Date();
+        message.createdAt = new Date().toISOString();
         message.from = (user.id || user._id).toString();
         if(options.log){
           console.log(`node-chat-server: creating chat message for ${user.name || user.id || user._id}`)

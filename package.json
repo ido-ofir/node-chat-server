@@ -1,6 +1,6 @@
 {
   "name": "node-chat-server",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "storage agnostic chat server for node",
   "main": "index.js",
   "scripts": {

@@ -1,5 +1,6 @@
 var http = require('http');
-var WebSocketServer = require('ws').Server;
+var WS = require('ws');
+var WebSocketServer = WS.Server;
 
 function copy(a, b) {
   if(!b) b = {};
@@ -119,7 +120,9 @@ function ChatServer(options){
 
       socket.action = function(type, data){  // run an action on the client.
           if(socket.isClosed) return;
-          socket.send(JSON.stringify({type: type, data: data}));
+          if (socket.readyState === WS.OPEN) {
+            socket.send(JSON.stringify({type: type, data: data}));
+          }
       };
 
       socket.on('message', function(msg){
@@ -134,7 +137,9 @@ function ChatServer(options){
                 if(options.openActions && options.openActions[json.type]){
                   return options.openActions[json.type].call(context, socket, json.data, function(err, res){
                       if(socket.isClosed) return;
-                      socket.send(JSON.stringify({id: json.id, error: err, data: res}));
+                      if (socket.readyState === WS.OPEN) {
+                        socket.send(JSON.stringify({id: json.id, error: err, data: res}));
+                      }
                   }, socket);
                 }
 
@@ -156,7 +161,9 @@ function ChatServer(options){
               if(action){ // perform a chat server action.
                 action.call(context, socket, json.data, function(err, res){
                     if(socket.isClosed) return;
-                    socket.send(JSON.stringify({id: json.id, error: err, data: res}));
+                    if (socket.readyState === WS.OPEN) {
+                      socket.send(JSON.stringify({id: json.id, error: err, data: res}));
+                    }
                 }, socket);
               }
               else{

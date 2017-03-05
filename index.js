@@ -39,6 +39,18 @@ function ChatServer(options){
       });
     }
 
+    function socketClosingError(socket){
+      var user = socket.user;
+      var id;
+      if(user){
+        id = user.id || user._id || user.name || 'Unknown';
+      }
+      else{
+        id = socket.id || socket._id || socket.name || 'Unknown';
+      }
+      chatServer.emit('error', `socket '${id}' did not close correctly.`);
+    }
+
     var actions = {
       authorize(socket, data, done){
         if(!options.authorize) return done('options.authorize is missing');
@@ -119,9 +131,14 @@ function ChatServer(options){
       }
 
       socket.action = function(type, data){  // run an action on the client.
-          if(socket.isClosed) return;
           if (socket.readyState === WS.OPEN) {
-            socket.send(JSON.stringify({type: type, data: data}));
+            try{
+              socket.send(JSON.stringify({type: type, data: data}));
+            }
+            catch(err){ socketClosingError(socket); }
+          }
+          else{
+            socketClosingError(socket);
           }
       };
 
@@ -136,10 +153,15 @@ function ChatServer(options){
                 // if not authorized, it can use only the open actions.
                 if(options.openActions && options.openActions[json.type]){
                   return options.openActions[json.type].call(context, socket, json.data, function(err, res){
-                      if(socket.isClosed) return;
-                      if (socket.readyState === WS.OPEN) {
+                    if (socket.readyState === WS.OPEN) {
+                      try{
                         socket.send(JSON.stringify({id: json.id, error: err, data: res}));
                       }
+                      catch(err){ socketClosingError(socket); }
+                    }
+                    else{
+                      socketClosingError(socket);
+                    }
                   }, socket);
                 }
 
@@ -177,17 +199,17 @@ function ChatServer(options){
 
       socket.on('close', function () {
         socket.isClosed = true;
-          var index = chatServer.sockets.indexOf(socket);
+        var index = chatServer.sockets.indexOf(socket);
+        if(options.log){
+          console.log(`node-chat-server: socket closing`)
+        }
+        if(index > -1){
+          chatServer.sockets.splice(index, 1);
+          chatServer.emit('socketClosed', socket, chatServer);
           if(options.log){
-            console.log(`node-chat-server: socket closing`)
+            console.log(`node-chat-server: splicing authorized socket. ${chatServer.sockets.length} connected sockets`)
           }
-          if(index > -1){
-            chatServer.sockets.splice(index, 1);
-            chatServer.emit('socketClosed', socket, chatServer);
-            if(options.log){
-              console.log(`node-chat-server: splicing authorized socket. ${chatServer.sockets.length} connected sockets`)
-            }
-          }
+        }
       });
 
       chatServer.emit('socketConnected', socket, chatServer);

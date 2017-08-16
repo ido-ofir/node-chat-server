@@ -153,3 +153,7 @@ This object is expected to contain the following:
 * 'socketConnected'
 * 'socketAuthorized'
 * 'socketClosed'
+
+#### Related projects
+
+* [node-chat-server-mongo](https://github.com/ido-ofir/node-chat-server-mongo) - implementing this chat server with mongo as the storage layer.
